@@ -5,6 +5,7 @@ import { ensureDirs, createLogger, randomDelay, readJson, writeJson, sleep } fro
 import { createBiliClient } from './bili.js';
 import { createGlmClassifier } from './glm.js';
 import { createKimiClassifier } from './kimi.js';
+import { createMinimaxClassifier } from './minimax.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,10 +22,12 @@ const bili = createBiliClient(config, log);
 let llmClassifier;
 if (config.llmProvider === 'kimi') {
   llmClassifier = createKimiClassifier(config, CATEGORIES);
+} else if (config.llmProvider === 'minimax') {
+  llmClassifier = createMinimaxClassifier(config, CATEGORIES);
 } else {
   // 保持向后兼容或当作默认防退回方案
   if (!config.zhipuApiKey && config.llmProvider === 'zhipu') {
-    log('警告', { message: '缺少智谱 API Key，您可以切换 LLM_PROVIDER=kimi' });
+    log('警告', { message: '缺少智谱 API Key，您可以切换 LLM_PROVIDER=kimi 或 minimax' });
   }
   llmClassifier = createGlmClassifier(config, CATEGORIES);
 }

@@ -29,9 +29,10 @@ npm start
 
 - `BILI_COOKIE`
 - `BILI_UID`
-- `LLM_PROVIDER` (可选 `zhipu` 或 `kimi`，默认 `zhipu`)
+- `LLM_PROVIDER` (可选 `zhipu` / `kimi` / `minimax`，默认 `zhipu`)
 - `ZHIPU_API_KEY` (使用 GLM 时必填)
 - `KIMI_API_KEY` (使用 Kimi 时必填)
+- `MINIMAX_API_KEY` (使用 MiniMax 时必填)
 - `ALLOW_CUSTOM_CATEGORIES` (`true` 或 `false`，开启大模型细粒度自由分组)
 - `DRY_RUN`
 - `MOVE_MODE`
@@ -39,8 +40,9 @@ npm start
 
 ## 输出文件
 
+- `data/followings.json`：全量关注列表缓存
 - `data/cache.json`：mid 到分类结果的缓存
-- `data/tags.json`：分组名到分组 id 的映射
+- `data/tags.json`：全站预设36大分区与分组名的映射
 - `logs/run.log`：运行日志
 
 ## 常见问题
