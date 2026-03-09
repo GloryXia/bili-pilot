@@ -1,0 +1,16 @@
+{
+  "name": "bili-follow-glm",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "低风险方式按 B 站常见分区给关注 UP 主做主分组（GLM-4.7 + Bilibili API）",
+  "scripts": {
+    "start": "node src/main.js",
+    "check": "node --check src/main.js"
+  },
+  "dependencies": {
+    "axios": "^1.8.4",
+    "dotenv": "^16.4.7",
+    "fs-extra": "^11.3.0"
+  }
+}
