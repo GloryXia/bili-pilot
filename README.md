@@ -1,4 +1,4 @@
-# bili-follow-glm
+# bili-follow-ai-repack
 
 用 Node.js 直接调用 B 站接口，拉取关注列表并结合 LLM (支持 智谱 GLM / 月之暗面 Kimi) 进行分类，按 B 站常见大分区给每个 UP 主分配一个“主分组”。
 
