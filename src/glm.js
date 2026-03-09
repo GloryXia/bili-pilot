@@ -3,7 +3,7 @@ import { normalizeCategory, sleep } from './utils.js';
 import { buildBatchPrompt, parseLLMResponse } from './prompts.js';
 
 export function createGlmClassifier(config, defaultCategories) {
-  async function doRequest(body, timeoutMs = 60000) {
+  async function doRequest(body, timeoutMs = 120000) {
     let attempt = 0;
     const maxRetries = config.maxRetries || 3;
     const baseDelay = config.retryBaseDelayMs || 3000;
@@ -69,7 +69,7 @@ export function createGlmClassifier(config, defaultCategories) {
         ]
       };
 
-      const raw = await doRequest(body, 60000);
+      const raw = await doRequest(body, 120000);
       return normalizeCategory(raw || '其他', dynamicCategories, config.allowCustomCategories);
     },
 
@@ -88,7 +88,7 @@ export function createGlmClassifier(config, defaultCategories) {
         ]
       };
 
-      let raw = await doRequest(body, 90000) || '{}';
+      let raw = await doRequest(body, 120000) || '{}';
 
       let parsed = {};
       try {

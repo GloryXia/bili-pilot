@@ -77,9 +77,19 @@ async function main() {
 
   const nav = await bili.getNav();
   const currentTags = await bili.getTags();
+
+  if (!config.dryRun) {
+    // Purge fake mock tags from cached tags.json so they don't break the real API when DRY_RUN transitions to false
+    for (const key of Object.keys(existingTagMap)) {
+      if (typeof existingTagMap[key] === 'string' && existingTagMap[key].startsWith('dry-run-')) {
+        delete existingTagMap[key];
+      }
+    }
+  }
+
   const tagMap = {
-    ...Object.fromEntries(currentTags.map(tag => [tag.name, tag.tagid])),
-    ...existingTagMap
+    ...existingTagMap,
+    ...Object.fromEntries(currentTags.map(tag => [tag.name, tag.tagid]))
   };
   await writeJson(tagsFile, tagMap);
 
@@ -162,11 +172,6 @@ async function main() {
             dryRun: config.dryRun
           });
 
-          if (!config.dryRun) {
-            await sleep(config.tagWriteDelayMs);
-            await bili.assignTag(mid, tagId);
-          }
-
           cache[mid] = {
             uname: item.uname,
             category,
@@ -189,6 +194,39 @@ async function main() {
 
     await writeJson(cacheFile, cache);
     await writeJson(tagsFile, tagMap);
+  }
+
+  if (!config.dryRun) {
+    log('所有数据分类完毕，开始执行统一批量分组同步...');
+    const groups = {};
+    for (const mid of Object.keys(cache)) {
+      const category = cache[mid].category || '其他';
+      if (!groups[category]) groups[category] = [];
+      groups[category].push(mid);
+    }
+
+    for (const category of Object.keys(groups)) {
+      if (category.startsWith('dry-run')) continue;
+
+      const mids = groups[category];
+      log(`准备同步分组 [${category}], 包含 ${mids.length} 个UP主`);
+
+      const tagId = await ensureTag(category, tagMap);
+
+      const chunkSize = 50;
+      for (let i = 0; i < mids.length; i += chunkSize) {
+        const chunk = mids.slice(i, i + chunkSize);
+        const fids = chunk.join(',');
+        log(`正在移入 [${category}] (进度: ${Math.min(i + chunkSize, mids.length)}/${mids.length})`);
+        await sleep(config.tagWriteDelayMs);
+        try {
+          await bili.assignTag(fids, tagId);
+        } catch (e) {
+          log(`批量移入失败: ${e.message}`);
+        }
+      }
+    }
+    log('批量同步完成！');
   }
 
   log('完成');

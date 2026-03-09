@@ -71,7 +71,7 @@ export function createMinimaxClassifier(config, defaultCategories) {
             'Authorization': `Bearer ${config.minimaxApiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: 60000
+          timeout: 120000
         }
       );
 
