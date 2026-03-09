@@ -81,18 +81,36 @@ async function main() {
   await writeJson(tagsFile, tagMap);
 
   let processedSinceSave = 0;
-  let page = 1;
+  const followingsFile = path.join(rootDir, 'data', 'followings.json');
+  let allFollowings = await readJson(followingsFile, null);
 
-  while (true) {
-    await randomDelay(config.requestMinDelayMs, config.requestMaxDelayMs);
-    const followings = await bili.getFollowings(page);
-    if (!followings.length) break;
+  if (!allFollowings || config.forceReclassify) {
+    log('开始获取并缓存完整关注列表');
+    allFollowings = [];
+    let page = 1;
+    while (true) {
+      await randomDelay(config.requestMinDelayMs, config.requestMaxDelayMs);
+      const followings = await bili.getFollowings(page);
+      if (!followings || followings.length === 0) break;
+      allFollowings.push(...followings);
+      log('获取关注列表页', { page, count: followings.length, total: allFollowings.length });
+      page += 1;
+    }
+    await writeJson(followingsFile, allFollowings);
+    log('关注列表缓存完毕', { file: followingsFile, count: allFollowings.length });
+  } else {
+    log('读取到本地关注列表缓存', { count: allFollowings.length, file: followingsFile });
+  }
 
-    log('扫描页', { page, count: followings.length });
+  const pageSize = config.pageSize || 20;
+  for (let i = 0; i < allFollowings.length; i += pageSize) {
+    const chunk = allFollowings.slice(i, i + pageSize);
+    const pageNum = Math.floor(i / pageSize) + 1;
+    log('扫描批次', { page: pageNum, count: chunk.length });
 
     const batchPayloads = [];
 
-    for (const up of followings) {
+    for (const up of chunk) {
       const mid = String(up.mid);
       if (!config.forceReclassify && cache[mid]?.category) {
         log('跳过缓存', { mid, uname: cache[mid].uname || up.uname, category: cache[mid].category });
@@ -168,7 +186,6 @@ async function main() {
 
     await writeJson(cacheFile, cache);
     await writeJson(tagsFile, tagMap);
-    page += 1;
   }
 
   log('完成');
