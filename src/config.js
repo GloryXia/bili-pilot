@@ -45,6 +45,7 @@ export const config = {
   dryRun: getBool('DRY_RUN', true),
   moveMode: getBool('MOVE_MODE', false),
   forceReclassify: getBool('FORCE_RECLASSIFY', false),
+  allowCustomCategories: getBool('ALLOW_CUSTOM_CATEGORIES', false),
   pageSize: getNum('PAGE_SIZE', 20),
   requestMinDelayMs: getNum('REQUEST_MIN_DELAY_MS', 2500),
   requestMaxDelayMs: getNum('REQUEST_MAX_DELAY_MS', 4500),

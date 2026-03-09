@@ -32,6 +32,7 @@ npm start
 - `LLM_PROVIDER` (可选 `zhipu` 或 `kimi`，默认 `zhipu`)
 - `ZHIPU_API_KEY` (使用 GLM 时必填)
 - `KIMI_API_KEY` (使用 Kimi 时必填)
+- `ALLOW_CUSTOM_CATEGORIES` (`true` 或 `false`，开启大模型细粒度自由分组)
 - `DRY_RUN`
 - `MOVE_MODE`
 - `FORCE_RECLASSIFY`

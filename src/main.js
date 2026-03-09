@@ -125,7 +125,8 @@ async function main() {
       log('开始批量分类', { count: batchPayloads.length });
       try {
         const classifyData = batchPayloads.map(b => ({ id: b.id, ...b.payload }));
-        const categoryMap = await llmClassifier.classifyBatch(classifyData);
+        const currentCategories = Object.keys(tagMap);
+        const categoryMap = await llmClassifier.classifyBatch(classifyData, currentCategories);
 
         for (const item of batchPayloads) {
           const mid = item.id;
