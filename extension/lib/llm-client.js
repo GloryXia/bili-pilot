@@ -38,7 +38,7 @@ export async function chatLLM({
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      console.log('[BiliBoard LLM] 请求开始', {
+      console.log('[BiliPilot LLM] 请求开始', {
         provider,
         model,
         baseUrl,
@@ -72,11 +72,11 @@ export async function chatLLM({
         throw new Error('LLM 返回空内容');
       }
 
-      console.log('[BiliBoard LLM] 请求成功', { provider, model });
+      console.log('[BiliPilot LLM] 请求成功', { provider, model });
       return content.trim();
     } catch (err) {
       lastError = err;
-      console.warn('[BiliBoard LLM] 请求失败', {
+      console.warn('[BiliPilot LLM] 请求失败', {
         provider,
         model,
         attempt: attempt + 1,

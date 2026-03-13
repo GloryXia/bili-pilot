@@ -3,7 +3,7 @@ import { createDashboardController } from '../lib/dashboard-view.js';
 
 let dashboardController = null;
 let dashboardLoaded = false;
-let autoClassifyUpdating = false;
+const pendingSwitches = new Set();
 const providerNames = { zhipu: '智谱 GLM', kimi: 'Kimi', minimax: 'MiniMax' };
 const providerKeyMap = {
   zhipu: 'zhipuApiKey',
@@ -36,7 +36,6 @@ async function init() {
   document.getElementById('masterSwitch').checked = config.enabled;
   document.getElementById('autoFollowSwitch').checked = config.autoFollowGroup;
   document.getElementById('autoFavSwitch').checked = config.autoFavOrganize;
-  document.getElementById('autoClassifySwitch').checked = config.autoClassify;
 
   // 设置表单
   document.getElementById('llmProvider').value = config.llmProvider;
@@ -149,44 +148,47 @@ document.getElementById('llmProvider').addEventListener('change', (e) => {
   updateKeyVisibility(e.target.value);
 });
 
+async function persistSwitch(element, key, nextValue, onSaved) {
+  if (pendingSwitches.has(key)) {
+    return;
+  }
+
+  pendingSwitches.add(key);
+  element.disabled = true;
+
+  try {
+    await setConfig({ [key]: nextValue });
+    if (typeof onSaved === 'function') {
+      await onSaved();
+    }
+  } catch (error) {
+    console.warn(`set ${key} err:`, error);
+    element.checked = !nextValue;
+  } finally {
+    element.disabled = false;
+    pendingSwitches.delete(key);
+  }
+}
+
 // ========================
 //  开关事件
 // ========================
 document.getElementById('masterSwitch').addEventListener('change', async (e) => {
-  await setConfig({ enabled: e.target.checked });
+  await persistSwitch(e.target, 'enabled', e.target.checked);
 });
 
 document.getElementById('autoFollowSwitch').addEventListener('change', async (e) => {
-  await setConfig({ autoFollowGroup: e.target.checked });
-  const config = await getAllConfig();
-  updateStatusInfo(config);
+  await persistSwitch(e.target, 'autoFollowGroup', e.target.checked, async () => {
+    const config = await getAllConfig();
+    updateStatusInfo(config);
+  });
 });
 
 document.getElementById('autoFavSwitch').addEventListener('change', async (e) => {
-  await setConfig({ autoFavOrganize: e.target.checked });
-  const config = await getAllConfig();
-  updateStatusInfo(config);
-});
-
-document.getElementById('autoClassifySwitch').addEventListener('change', async (e) => {
-  const nextValue = e.target.checked;
-
-  if (autoClassifyUpdating) {
-    return;
-  }
-
-  autoClassifyUpdating = true;
-  e.target.disabled = true;
-
-  try {
-    await setConfig({ autoClassify: nextValue });
-  } catch (error) {
-    console.warn('set autoClassify err:', error);
-    e.target.checked = !nextValue;
-  } finally {
-    e.target.disabled = false;
-    autoClassifyUpdating = false;
-  }
+  await persistSwitch(e.target, 'autoFavOrganize', e.target.checked, async () => {
+    const config = await getAllConfig();
+    updateStatusInfo(config);
+  });
 });
 
 // ========================
@@ -241,20 +243,19 @@ async function loadLog() {
 
     let cls = 'info';
     if (entry.action === 'error') cls = 'error';
-    else if (entry.manualOnly) cls = 'dryrun';
     else if (entry.action === 'grouped' || entry.action === 'moved' || entry.action === 'matched') cls = 'success';
 
     let desc = '';
     if (entry.type === 'follow') {
       desc = entry.action === 'error'
         ? `关注分组失败: ${entry.message}`
-        : `${entry.upName || entry.fid} → 「${entry.category}」${entry.manualOnly ? ' (仅建议)' : ''}`;
+        : `${entry.upName || entry.fid} → 「${entry.category}」`;
     } else if (entry.type === 'favorite') {
       desc = entry.action === 'error'
         ? `收藏归类失败: ${entry.message}`
         : entry.action === 'matched'
           ? `「${entry.title}」已在正确位置`
-          : `「${entry.title}」→ 「${entry.suggestedFolder || entry.to}」${entry.manualOnly ? ' (仅建议)' : ''}`;
+          : `「${entry.title}」→ 「${entry.suggestedFolder || entry.to}」`;
     } else {
       desc = JSON.stringify(entry);
     }

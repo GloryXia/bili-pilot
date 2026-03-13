@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "BiliBoard — 哔哩看板",
+  "name": "BiliPilot — 哔哩智能管家",
   "version": "2.0.0",
   "description": "B 站个人数据智能管理：关注自动分组、收藏自动归类、稍后再看摘要、观看历史画像",
   "icons": {
@@ -50,6 +50,6 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png"
     },
-    "default_title": "BiliBoard 哔哩看板"
+    "default_title": "BiliPilot 哔哩智能管家"
   }
 }

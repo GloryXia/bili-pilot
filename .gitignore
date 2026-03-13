@@ -5,3 +5,4 @@ data/*.json
 !.gitkeep
 .DS_Store
 .idea/
+package-lock.json

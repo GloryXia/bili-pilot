@@ -10,6 +10,23 @@ import {
   updateFavCache, updateClassifyCache
 } from './storage.js';
 
+function createFeatureDisabledError(message) {
+  const error = new Error(message);
+  error.code = 'FEATURE_DISABLED';
+  return error;
+}
+
+function isFeatureDisabledError(error) {
+  return error?.code === 'FEATURE_DISABLED';
+}
+
+async function assertFeatureEnabled(featureKey, message) {
+  const flags = await getConfig(['enabled', featureKey]);
+  if (!flags.enabled || !flags[featureKey]) {
+    throw createFeatureDisabledError(message);
+  }
+}
+
 /**
  * 处理关注事件 — UP 主自动分组
  *
@@ -27,21 +44,22 @@ export async function handleFollow(fid, requestContext = {}) {
   // 1. 检查缓存，避免重复分类
   const cached = config.classifyCache?.[fid];
   if (cached && Date.now() - cached.ts < 7 * 24 * 3600 * 1000) {
-    if (!config.autoClassify) {
-      await appendLog({
-        type: 'follow',
-        action: 'classify',
+    try {
+      await assignToTag(
         fid,
-        category: cached.category,
-        manualOnly: true,
-        fromCache: true,
-      });
-      return { success: true, category: cached.category, fromCache: true, manualOnly: true };
+        cached.category,
+        config,
+        null,
+        requestContext,
+        () => assertFeatureEnabled('autoFollowGroup', '自动分组已关闭')
+      );
+      return { success: true, category: cached.category, fromCache: true };
+    } catch (err) {
+      if (isFeatureDisabledError(err)) {
+        return { skipped: true, reason: err.message };
+      }
+      return { error: true, message: `分组写入失败: ${err.message}`, category: cached.category };
     }
-
-    // 7天内分类过的，直接用缓存
-    await assignToTag(fid, cached.category, config, null, requestContext);
-    return { success: true, category: cached.category, fromCache: true };
   }
 
   // 2. 获取 UP 主信息
@@ -59,7 +77,10 @@ export async function handleFollow(fid, requestContext = {}) {
   let videoTitles = [];
   try {
     const videos = await bili.getRecentVideos(fid, 5, requestContext);
-    videoTitles = videos.map(v => v.title);
+    videoTitles = videos.map(v => {
+      const date = v.created ? new Date(v.created * 1000).toISOString().split('T')[0] : '';
+      return date ? `[${date}] ${v.title}` : v.title;
+    });
   } catch {
     // 视频获取失败不影响分类
   }
@@ -93,24 +114,17 @@ export async function handleFollow(fid, requestContext = {}) {
     return { error: true, message: `LLM 分类失败: ${err.message}`, upName };
   }
 
-  // 6. 缓存分类结果
-  await updateClassifyCache(fid, category);
-
-  // 7. 分配分组
-  if (!config.autoClassify) {
-    await appendLog({
-      type: 'follow',
-      action: 'classify',
-      upName,
+  // 6. 分配分组
+  try {
+    await assignToTag(
       fid,
       category,
-      manualOnly: true,
-    });
-    return { success: true, category, upName, manualOnly: true };
-  }
-
-  try {
-    await assignToTag(fid, category, config, tags, requestContext);
+      config,
+      tags,
+      requestContext,
+      () => assertFeatureEnabled('autoFollowGroup', '自动分组已关闭')
+    );
+    await updateClassifyCache(fid, category);
     await appendLog({
       type: 'follow',
       action: 'grouped',
@@ -120,6 +134,9 @@ export async function handleFollow(fid, requestContext = {}) {
     });
     return { success: true, category, upName };
   } catch (err) {
+    if (isFeatureDisabledError(err)) {
+      return { skipped: true, reason: err.message };
+    }
     await appendLog({
       type: 'follow',
       action: 'error',
@@ -135,18 +152,21 @@ export async function handleFollow(fid, requestContext = {}) {
 /**
  * 分配 UP 主到指定分组（查找或创建）
  */
-async function assignToTag(fid, category, config, tags, requestContext = {}) {
+async function assignToTag(fid, category, config, tags, requestContext = {}, assertEnabled = null) {
+  if (assertEnabled) await assertEnabled();
   if (!tags) tags = await bili.getTags(requestContext);
 
   const tagMap = Object.fromEntries(tags.map(t => [t.name, t.tagid]));
   let tagId = tagMap[category] || config.followTags?.[category];
 
   if (!tagId) {
+    if (assertEnabled) await assertEnabled();
     // 创建新分组
     tagId = await bili.createTag(category, requestContext);
     await updateTagCache(category, tagId);
   }
 
+  if (assertEnabled) await assertEnabled();
   await bili.assignTag(fid, tagId, requestContext);
 }
 
@@ -174,28 +194,17 @@ export async function planFavoriteFolder(rid, requestContext = {}) {
     return prepared;
   }
 
-  const { config, title, suggestedFolder, folders } = prepared;
+  const { title, suggestedFolder, folders } = prepared;
   const targetFolder = folders.find(folder => folder.title === suggestedFolder);
   const targetFolderId = targetFolder?.id ? String(targetFolder.id) : '';
 
-  if (!config.autoClassify) {
-    await appendLog({
-      type: 'favorite',
-      action: 'suggest',
-      title,
-      suggestedFolder,
-      manualOnly: true,
-      source: 'dialog',
-    });
-    return {
-      success: true,
-      rid,
-      title,
-      targetFolderName: suggestedFolder,
-      targetFolderId,
-      created: false,
-      manualOnly: true,
-    };
+  try {
+    await assertFeatureEnabled('autoFavOrganize', '自动归类已关闭');
+  } catch (err) {
+    if (isFeatureDisabledError(err)) {
+      return { skipped: true, reason: err.message };
+    }
+    throw err;
   }
 
   if (targetFolderId) {
@@ -206,11 +215,11 @@ export async function planFavoriteFolder(rid, requestContext = {}) {
       targetFolderName: suggestedFolder,
       targetFolderId,
       created: false,
-      manualOnly: false,
     };
   }
 
   try {
+    await assertFeatureEnabled('autoFavOrganize', '自动归类已关闭');
     const createdFolder = await bili.createFavFolder(suggestedFolder, requestContext);
     await updateFavCache(suggestedFolder, createdFolder.id);
 
@@ -221,9 +230,11 @@ export async function planFavoriteFolder(rid, requestContext = {}) {
       targetFolderName: suggestedFolder,
       targetFolderId: String(createdFolder.id),
       created: true,
-      manualOnly: false,
     };
   } catch (err) {
+    if (isFeatureDisabledError(err)) {
+      return { skipped: true, reason: err.message };
+    }
     await appendLog({
       type: 'favorite',
       action: 'error',
@@ -268,34 +279,27 @@ export async function handleFavorite(rid, addMediaIds, requestContext = {}) {
     return { success: true, suggestedFolder, title, alreadyCorrect: true };
   }
 
-  if (!config.autoClassify) {
-    await appendLog({
-      type: 'favorite',
-      action: 'suggest',
-      title,
-      currentFolder: chosenFolderName,
-      suggestedFolder,
-      manualOnly: true,
-    });
-    return { success: true, suggestedFolder, title, currentFolder: chosenFolderName, manualOnly: true };
-  }
-
   // 6. 查找或创建目标收藏夹
   let targetFolder = folders.find(f => f.title === suggestedFolder);
   let targetMediaId = targetFolder?.id || config.favFolders?.[suggestedFolder];
 
   if (!targetMediaId) {
     try {
+      await assertFeatureEnabled('autoFavOrganize', '自动归类已关闭');
       const created = await bili.createFavFolder(suggestedFolder, requestContext);
       targetMediaId = created.id;
       await updateFavCache(suggestedFolder, targetMediaId);
     } catch (err) {
+      if (isFeatureDisabledError(err)) {
+        return { skipped: true, reason: err.message };
+      }
       return { error: true, message: `创建收藏夹失败: ${err.message}`, title, suggestedFolder };
     }
   }
 
   // 7. 移动视频
   try {
+    await assertFeatureEnabled('autoFavOrganize', '自动归类已关闭');
     const srcMediaId = chosenFolder?.id || chosenFolderIds[0];
     const resources = `${rid}:2`; // 2 = 视频类型
     await bili.moveFavResource(srcMediaId, targetMediaId, resources, uid, requestContext);
@@ -310,6 +314,9 @@ export async function handleFavorite(rid, addMediaIds, requestContext = {}) {
 
     return { success: true, suggestedFolder, title, moved: true };
   } catch (err) {
+    if (isFeatureDisabledError(err)) {
+      return { skipped: true, reason: err.message };
+    }
     await appendLog({
       type: 'favorite',
       action: 'error',

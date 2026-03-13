@@ -1,5 +1,5 @@
 /**
- * BiliBoard Service Worker (MV3 后台脚本)
+ * BiliPilot Service Worker (MV3 后台脚本)
  *
  * 职责：
  * 1. 接收 Content Script 的拦截事件
@@ -48,7 +48,7 @@ async function processQueue() {
     try {
       await task();
     } catch (err) {
-      console.error('[BiliBoard SW] 任务执行失败:', err);
+      console.error('[BiliPilot SW] 任务执行失败:', err);
     }
     if (taskQueue.length > 0) {
       await new Promise(r => setTimeout(r, 1000));
@@ -66,7 +66,7 @@ function notify(title, message, options = {}) {
   chrome.notifications.create({
     type: 'basic',
     iconUrl: 'icons/icon128.png',
-    title: `BiliBoard ${isError ? '⚠️' : '✅'} ${title}`,
+    title: `BiliPilot ${isError ? '⚠️' : '✅'} ${title}`,
     message,
     priority: (isError || attention) ? 2 : 0,
   });
@@ -130,6 +130,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === 'BILIBOARD_RUNTIME_FLAGS') {
+    getConfig(['enabled', 'autoFollowGroup', 'autoFavOrganize']).then(sendResponse).catch(err => {
+      sendResponse({ error: true, message: err.message });
+    });
+    return true;
+  }
+
   if (msg.type === 'BILIBOARD_FAVORITE_PLAN') {
     enqueue(async () => {
       const rid = msg.rid;
@@ -139,13 +146,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       const requestContext = { preferredTabId: sender.tab?.id };
       const result = await planFavoriteFolder(rid, requestContext);
-      console.log('[BiliBoard SW] favorite plan result:', result);
+      console.log('[BiliPilot SW] favorite plan result:', result);
 
       if (result?.error) {
         notify('收藏归类失败', result.message, { isError: true });
-      } else if (result?.manualOnly) {
-        notify('收藏归类',
-          `「${result.title}」建议收藏到"${result.targetFolderName}"`);
       }
 
       return result;
@@ -160,7 +164,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   const { event, data } = msg;
-  console.log(`[BiliBoard SW] 收到事件: ${event}`, data);
+  console.log(`[BiliPilot SW] 收到事件: ${event}`, data);
 
   if (event === 'follow') {
     enqueue(async () => {
@@ -171,15 +175,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       notify('关注分组', `正在分析 UID:${fid}...`);
 
       const result = await handleFollow(fid, requestContext);
-      console.log('[BiliBoard SW] follow result:', result);
+      console.log('[BiliPilot SW] follow result:', result);
 
       if (result.skipped) {
         // 静默跳过
       } else if (result.error) {
         notify('关注分组失败', result.message, { isError: true });
-      } else if (result.manualOnly) {
-        notify('关注分组',
-          `${result.upName || `UID:${fid}`} → 建议分组「${result.category}」${result.fromCache ? ' (缓存)' : ''}`);
       } else if (result.fromCache) {
         announceSuccess(
           sender.tab?.id,
@@ -213,7 +214,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       notify('收藏归类', `正在分析视频 AV${rid}...`);
 
       const result = await handleFavorite(rid, addMediaIds, requestContext);
-      console.log('[BiliBoard SW] favorite result:', result);
+      console.log('[BiliPilot SW] favorite result:', result);
 
       if (result.skipped) {
         // 静默跳过
@@ -222,9 +223,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       } else if (result.alreadyCorrect) {
         notify('收藏归类',
           `「${result.title}」已在最佳收藏夹中 ✓`);
-      } else if (result.manualOnly) {
-        notify('收藏归类',
-          `「${result.title}」建议从"${result.currentFolder}"移到"${result.suggestedFolder}"`);
       } else if (result.moved) {
         announceSuccess(
           sender.tab?.id,
@@ -275,12 +273,12 @@ async function fetchLoginStatus() {
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[BiliBoard] 插件已安装');
-    notify('欢迎使用 BiliBoard',
+    console.log('[BiliPilot] 插件已安装');
+    notify('欢迎使用 BiliPilot',
       '请点击工具栏图标设置 LLM API Key，然后就可以自动分组了！');
   } else if (details.reason === 'update') {
-    console.log('[BiliBoard] 插件已更新到', chrome.runtime.getManifest().version);
+    console.log('[BiliPilot] 插件已更新到', chrome.runtime.getManifest().version);
   }
 });
 
-console.log('[BiliBoard] Service Worker 已启动 ✅');
+console.log('[BiliPilot] Service Worker 已启动 ✅');

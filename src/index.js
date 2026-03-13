@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * BiliBoard (哔哩看板) — CLI 入口
+ * BiliPilot (哔哩智能管家) — CLI 入口
  *
  * 用法：
- *   biliboard              默认执行全部模块
- *   biliboard all           全部模块顺序执行
- *   biliboard follow        关注列表 LLM 自动分组
- *   biliboard favorites     收藏夹分析与整理
- *   biliboard watchlater    稍后再看管理
- *   biliboard history       观看历史分析
- *   biliboard interactions  投币/点赞统计
- *   biliboard report        生成个人数据报告
+ *   bilipilot              默认执行全部模块
+ *   bilipilot all           全部模块顺序执行
+ *   bilipilot follow        关注列表 LLM 自动分组
+ *   bilipilot favorites     收藏夹分析与整理
+ *   bilipilot watchlater    稍后再看管理
+ *   bilipilot history       观看历史分析
+ *   bilipilot interactions  投币/点赞统计
+ *   bilipilot report        生成个人数据报告
  */
 
 import { Command } from 'commander';
@@ -25,8 +25,8 @@ const rootDir = path.resolve(__dirname, '..');
 const program = new Command();
 
 program
-  .name('biliboard')
-  .description('BiliBoard (哔哩看板) — B 站个人数据综合管理工具')
+  .name('bilipilot')
+  .description('BiliPilot (哔哩智能管家) — B 站个人数据综合管理工具')
   .version('2.0.0');
 
 // ========================
@@ -112,7 +112,7 @@ program
   .command('all')
   .description('顺序执行全部模块（关注 → 收藏夹 → 稍后再看 → 历史 → 互动 → 报告）')
   .action(async () => {
-    console.log('\n🚀 BiliBoard 全量执行开始...\n');
+    console.log('\n🚀 BiliPilot 全量执行开始...\n');
 
     console.log('━━━ [1/6] 关注列表分组 ━━━');
     const { runFollow } = await import('./modules/follow/index.js');
@@ -138,12 +138,12 @@ program
     const { runReport } = await import('./modules/report/index.js');
     await runReport({ rootDir });
 
-    console.log('\n✅ BiliBoard 全量执行完成！\n');
+    console.log('\n✅ BiliPilot 全量执行完成！\n');
   });
 
 // 默认行为：没有子命令时执行 all
 program.action(async () => {
-  await program.parseAsync(['node', 'biliboard', 'all']);
+  await program.parseAsync(['node', 'bilipilot', 'all']);
 });
 
 program.parseAsync(process.argv).catch((err) => {

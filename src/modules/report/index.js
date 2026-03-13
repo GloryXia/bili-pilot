@@ -28,7 +28,7 @@ export async function runReport(opts = {}) {
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
 
-  sections.push(`# 📊 BiliBoard 个人数据报告`);
+  sections.push(`# 📊 BiliPilot 个人数据报告`);
   sections.push(`> 生成时间: ${now.toLocaleString('zh-CN')}\n`);
 
   // ========================
@@ -164,7 +164,7 @@ export async function runReport(opts = {}) {
   //  写入报告
   // ========================
   sections.push('---');
-  sections.push(`*由 [BiliBoard](https://github.com/) 自动生成*`);
+  sections.push(`*由 BiliPilot 自动生成*`);
 
   const markdown = sections.join('\n');
   const reportPath = path.join(reportDir, `report-${dateStr}.md`);

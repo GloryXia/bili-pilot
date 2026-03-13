@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * BiliBoard 一键导出脚本
+ * BiliPilot 一键导出脚本
  *
  * 将所有本地数据打包到一个 JSON 文件中，便于备份或迁移
  *
@@ -20,7 +20,7 @@ const dataDir = path.join(rootDir, 'data');
 const outputArg = process.argv.find((a, i) => process.argv[i - 1] === '--output');
 const now = new Date();
 const dateStr = now.toISOString().split('T')[0];
-const outputPath = outputArg || path.join(rootDir, `biliboard-export-${dateStr}.json`);
+const outputPath = outputArg || path.join(rootDir, `bilipilot-export-${dateStr}.json`);
 
 async function readIfExists(file) {
   try {
@@ -30,7 +30,7 @@ async function readIfExists(file) {
 }
 
 async function exportAll() {
-  console.log('📦 BiliBoard 数据导出...\n');
+  console.log('📦 BiliPilot 数据导出...\n');
 
   const exportData = {
     exportedAt: now.toISOString(),

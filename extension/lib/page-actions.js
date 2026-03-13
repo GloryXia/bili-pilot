@@ -3,7 +3,7 @@ export async function requestBiliPageAction(message, options = {}) {
     try {
       return await requestPageActionFromTab(options.preferredTabId, message);
     } catch (error) {
-      console.warn('[BiliBoard] 复用来源标签页失败，准备回退到其他 B站标签页:', error);
+      console.warn('[BiliPilot] 复用来源标签页失败，准备回退到其他 B站标签页:', error);
     }
   }
 
@@ -12,7 +12,7 @@ export async function requestBiliPageAction(message, options = {}) {
     try {
       return await requestPageActionFromTab(existingTab.id, message);
     } catch (error) {
-      console.warn('[BiliBoard] 复用 B站标签页失败，准备创建临时标签页:', error);
+      console.warn('[BiliPilot] 复用 B站标签页失败，准备创建临时标签页:', error);
     }
   }
 

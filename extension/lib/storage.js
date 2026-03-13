@@ -21,7 +21,6 @@ const DEFAULTS = {
   enabled: true,
   autoFollowGroup: true,
   autoFavOrganize: true,
-  autoClassify: true,
 
   // 缓存
   followTags: {},         // { tagName: tagId }

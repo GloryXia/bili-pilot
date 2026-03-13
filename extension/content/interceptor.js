@@ -1,5 +1,5 @@
 /**
- * BiliBoard Content Script — MAIN World Interceptor
+ * BiliPilot Content Script — MAIN World Interceptor
  *
  * 注入到 B 站页面的主世界（MAIN world），负责：
  * 1. 劫持关键 fetch/XHR 请求，捕获关注/收藏动作
@@ -532,7 +532,7 @@
     clearLastFavoriteTrigger();
 
     if (reason && reason !== 'submitted') {
-      console.log('[BiliBoard] 结束收藏弹窗会话:', reason);
+      console.log('[BiliPilot] 结束收藏弹窗会话:', reason);
     }
   }
 
@@ -632,14 +632,21 @@
           return;
         }
 
-        if (!plan || plan.error || plan.skipped || plan.manualOnly) {
+        if (!plan || plan.error || plan.skipped) {
           cancelFavoriteSession(plan?.message || plan?.reason || 'fallback_manual');
+          return;
+        }
+
+        if (!(await ensureFavoriteAutomationEnabled(session, 'favorite_disabled_before_takeover'))) {
           return;
         }
 
         session.plan = plan;
 
         if (plan.created) {
+          if (!(await ensureFavoriteAutomationEnabled(session, 'favorite_disabled_before_reopen'))) {
+            return;
+          }
           await reopenFavoriteDialog(session);
           return;
         }
@@ -650,10 +657,14 @@
         return;
       }
 
+      if (!(await ensureFavoriteAutomationEnabled(session, 'favorite_disabled_before_apply'))) {
+        return;
+      }
+
       session.state = 'applying';
       await applyFavoritePlanToDialog(session, dialog, session.plan);
     } catch (error) {
-      console.warn('[BiliBoard] 收藏弹窗自动归类失败:', error);
+      console.warn('[BiliPilot] 收藏弹窗自动归类失败:', error);
       cancelFavoriteSession('apply_error');
     }
   }
@@ -663,6 +674,34 @@
       type: 'BILIBOARD_FAVORITE_PLAN',
       rid,
     }, FAVORITE_PLAN_TIMEOUT);
+  }
+
+  function requestRuntimeFlags() {
+    return requestServiceWorker({
+      type: 'BILIBOARD_RUNTIME_FLAGS',
+    }, 5000);
+  }
+
+  async function ensureFavoriteAutomationEnabled(session, reason) {
+    if (!isSessionActive(session)) {
+      return false;
+    }
+
+    try {
+      const flags = await requestRuntimeFlags();
+      if (!isSessionActive(session)) {
+        return false;
+      }
+      if (!flags?.enabled || !flags?.autoFavOrganize) {
+        cancelFavoriteSession(reason);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.warn('[BiliPilot] 获取收藏自动归类状态失败:', error);
+      cancelFavoriteSession(reason || 'favorite_status_error');
+      return false;
+    }
   }
 
   function requestServiceWorker(message, timeout = FAVORITE_PLAN_TIMEOUT) {
@@ -779,6 +818,10 @@
       }
 
       throw new Error('收藏确认按钮未启用');
+    }
+
+    if (!(await ensureFavoriteAutomationEnabled(session, 'favorite_disabled_before_submit'))) {
+      return;
     }
 
     markSuppressedFavoriteRequest(session.rid, plan.targetFolderId, {
@@ -965,7 +1008,7 @@
               : null;
 
             if (suppressedFavorite) {
-              console.log('[BiliBoard] 跳过已接管的 favorite 事件', parsed);
+              console.log('[BiliPilot] 跳过已接管的 favorite 事件', parsed);
               emitToast(
                 '收藏归类成功',
                 `「${suppressedFavorite.title || `AV${parsed.rid}`}」已自动归类到「${suppressedFavorite.targetFolderName || '目标收藏夹'}」`
@@ -978,14 +1021,14 @@
               url,
               response: json,
             });
-            console.log(`[BiliBoard] 捕获到 ${rule.name} 操作`, parsed);
+            console.log(`[BiliPilot] 捕获到 ${rule.name} 操作`, parsed);
           }).catch(() => {
             // ignore
           });
 
           return response;
         } catch (err) {
-          console.warn(`[BiliBoard] 拦截 ${rule.name} 出错:`, err);
+          console.warn(`[BiliPilot] 拦截 ${rule.name} 出错:`, err);
           return originalFetch.apply(this, args);
         }
       }
@@ -1001,14 +1044,14 @@
   const originalXHRSend = XMLHttpRequest.prototype.send;
 
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    this.__biliboard_method = method;
-    this.__biliboard_url = url;
+    this.__bilipilot_method = method;
+    this.__bilipilot_url = url;
     return originalXHROpen.call(this, method, url, ...rest);
   };
 
   XMLHttpRequest.prototype.send = function (body) {
-    const method = (this.__biliboard_method || '').toUpperCase();
-    const url = this.__biliboard_url || '';
+    const method = (this.__bilipilot_method || '').toUpperCase();
+    const url = this.__bilipilot_url || '';
 
     if (method === 'POST') {
       for (const rule of INTERCEPT_RULES) {
@@ -1033,7 +1076,7 @@
                   : null;
 
                 if (suppressedFavorite) {
-                  console.log('[BiliBoard] 跳过已接管的 favorite XHR 事件', parsed);
+                  console.log('[BiliPilot] 跳过已接管的 favorite XHR 事件', parsed);
                   emitToast(
                     '收藏归类成功',
                     `「${suppressedFavorite.title || `AV${parsed.rid}`}」已自动归类到「${suppressedFavorite.targetFolderName || '目标收藏夹'}」`
@@ -1046,13 +1089,13 @@
                   url,
                   response: json,
                 });
-                console.log(`[BiliBoard] XHR 捕获到 ${rule.name} 操作`, parsed);
+                console.log(`[BiliPilot] XHR 捕获到 ${rule.name} 操作`, parsed);
               } catch {
                 // ignore
               }
             });
           } catch (err) {
-            console.warn('[BiliBoard] XHR 拦截出错:', err);
+            console.warn('[BiliPilot] XHR 拦截出错:', err);
           }
           break;
         }
@@ -1101,5 +1144,5 @@
   });
 
   initFavoriteDialogAutomation();
-  console.log('[BiliBoard] 拦截器已注入 ✅');
+  console.log('[BiliPilot] 拦截器已注入 ✅');
 })();

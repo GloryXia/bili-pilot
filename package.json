@@ -1,11 +1,11 @@
 {
-  "name": "biliboard",
+  "name": "bilipilot",
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "BiliBoard (哔哩看板) — B 站个人数据综合管理工具，支持关注分组、收藏夹整理、稍后再看、历史分析等",
+  "description": "BiliPilot (哔哩智能管家) — B 站个人数据综合管理工具，支持关注分组、收藏夹整理、稍后再看、历史分析等",
   "bin": {
-    "biliboard": "src/index.js"
+    "bilipilot": "src/index.js"
   },
   "scripts": {
     "start": "node src/index.js all",

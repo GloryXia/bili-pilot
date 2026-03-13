@@ -1,5 +1,5 @@
 /**
- * BiliBoard Content Script — ISOLATED World Bridge
+ * BiliPilot Content Script — ISOLATED World Bridge
  *
  * 在隔离世界中运行，负责：
  * 1. 接收 MAIN world interceptor.js 通过 window.postMessage 发来的拦截事件
@@ -21,7 +21,7 @@
   const BILIBOARD_SW_REQ = '__BILIBOARD_SW_REQ__';
   const BILIBOARD_SW_RES = '__BILIBOARD_SW_RES__';
   const BILIBOARD_TOAST_REQ = '__BILIBOARD_TOAST_REQ__';
-  const TOAST_HOST_ID = '__biliboard_toast_host__';
+  const TOAST_HOST_ID = '__bilipilot_toast_host__';
 
   function ensureToastHost() {
     let host = document.getElementById(TOAST_HOST_ID);
@@ -131,7 +131,7 @@
     if (event.data.type !== BILIBOARD_MSG_TYPE) return;
 
     const { event: eventName, data, timestamp } = event.data;
-    console.log('[BiliBoard Bridge] 收到页面事件:', eventName, data);
+    console.log('[BiliPilot Bridge] 收到页面事件:', eventName, data);
 
     // 转发到 Service Worker
     chrome.runtime.sendMessage({
@@ -141,14 +141,14 @@
       timestamp,
       pageUrl: location.href,
     }).then((response) => {
-      console.log('[BiliBoard Bridge] 已转发到 SW:', response);
+      console.log('[BiliPilot Bridge] 已转发到 SW:', response);
       if (response?.notification) {
         // Service Worker 返回的通知信息，可选择注入到页面
-        console.log('[BiliBoard Bridge] SW 响应:', response);
+        console.log('[BiliPilot Bridge] SW 响应:', response);
       }
     }).catch((err) => {
       // Service Worker 可能未准备好
-      console.warn('[BiliBoard Bridge] 发送消息失败:', err.message);
+      console.warn('[BiliPilot Bridge] 发送消息失败:', err.message);
     });
   });
 
@@ -204,5 +204,5 @@
     return true;
   });
 
-  console.log('[BiliBoard] 桥接脚本已加载 ✅');
+  console.log('[BiliPilot] 桥接脚本已加载 ✅');
 })();

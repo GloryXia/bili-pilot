@@ -120,11 +120,15 @@ export async function classifyFollowings({
  * 从 UP 主资料和视频列表构建分类 payload
  */
 function buildPayload(accInfo, videos, config) {
-  const recentVideos = videos.slice(0, config.maxVideoSamples).map(video => ({
-    title: video.title,
-    tname: video.tname,
-    desc: video.description || ''
-  }));
+  const recentVideos = videos.slice(0, config.maxVideoSamples).map(video => {
+    const pubdate = video.created ? new Date(video.created * 1000).toISOString().split('T')[0] : '';
+    return {
+      title: video.title,
+      pubdate,
+      tname: video.tname,
+      desc: video.description || ''
+    };
+  });
 
   return {
     name: accInfo?.name || '',
