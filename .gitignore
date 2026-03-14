@@ -2,6 +2,9 @@ node_modules/
 .env
 logs/*.log
 data/*.json
+data/*/*.json
+reports/*.md
+reports/*.html
 !.gitkeep
 .DS_Store
 .idea/

@@ -1,4 +1,6 @@
+import fs from 'fs';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -26,13 +28,49 @@ function getBool(key, fallback) {
   return ['1', 'true', 'yes', 'on'].includes(String(raw).toLowerCase());
 }
 
-export const CATEGORIES = [
+function normalizeCategoryList(values, fallback = []) {
+  const result = [];
+  const seen = new Set();
+  for (const value of values || []) {
+    const trimmed = String(value || '').trim();
+    if (trimmed && !seen.has(trimmed)) {
+      seen.add(trimmed);
+      result.push(trimmed);
+    }
+  }
+
+  const resolved = result.length > 0 ? result : [...fallback];
+  if (!resolved.includes('其他')) {
+    resolved.push('其他');
+  }
+  return resolved;
+}
+
+export const DEFAULT_FOLLOW_CATEGORIES = [
   '番剧', '国创', '纪录片', '电影', '电视剧', '综艺', '影视', '娱乐',
   '音乐', '舞蹈', '动画', '绘画', '鬼畜', '游戏', '资讯', '知识',
   '人工智能', '科技数码', '汽车', '时尚美妆', '家装房产', '户外潮流',
   '健身', '体育运动', '手工', '美食', '小剧场', '旅游出行', '三农',
   '动物', '亲子', '健康', '情感', 'vlog', '生活兴趣', '生活经验', '其他'
 ];
+
+export const FOLLOW_CATEGORIES_FILE = fileURLToPath(
+  new URL('../config/follow-categories.json', import.meta.url)
+);
+
+function loadFollowCategories() {
+  try {
+    const raw = fs.readFileSync(FOLLOW_CATEGORIES_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error('JSON 顶层必须是数组');
+    }
+    return normalizeCategoryList(parsed, DEFAULT_FOLLOW_CATEGORIES);
+  } catch (error) {
+    console.warn(`[BiliPilot CLI] 读取关注分类配置失败，回退默认分类: ${error.message}`);
+    return [...DEFAULT_FOLLOW_CATEGORIES];
+  }
+}
 
 export const config = {
   biliCookie: must('BILI_COOKIE'),
@@ -50,7 +88,7 @@ export const config = {
   dryRun: getBool('DRY_RUN', true),
   moveMode: getBool('MOVE_MODE', false),
   forceReclassify: getBool('FORCE_RECLASSIFY', false),
-  allowCustomCategories: getBool('ALLOW_CUSTOM_CATEGORIES', false),
+  followCategories: loadFollowCategories(),
   pageSize: getNum('PAGE_SIZE', 20),
   requestMinDelayMs: getNum('REQUEST_MIN_DELAY_MS', 2500),
   requestMaxDelayMs: getNum('REQUEST_MAX_DELAY_MS', 4500),

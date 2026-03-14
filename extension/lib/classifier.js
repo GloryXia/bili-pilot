@@ -6,6 +6,10 @@ import { createLLMChat } from './llm-client.js';
 import * as bili from './bili-api.js';
 import { buildFollowClassifyPrompt, buildFavClassifyPrompt } from './prompts.js';
 import {
+  createChoiceOptions,
+  resolveChoiceFromLLM,
+} from './choice-match.js';
+import {
   getConfig, appendLog, updateTagCache,
   updateFavCache, updateClassifyCache
 } from './storage.js';
@@ -25,6 +29,35 @@ async function assertFeatureEnabled(featureKey, message) {
   if (!flags.enabled || !flags[featureKey]) {
     throw createFeatureDisabledError(message);
   }
+}
+
+function buildRecentFollowExamples(operationLog = [], options = []) {
+  const optionIdByName = new Map(options.map(option => [option.name, option.optionId]));
+  return operationLog
+    .filter(entry => entry.type === 'follow' && entry.action === 'grouped' && entry.category)
+    .slice(0, 5)
+    .map((entry) => {
+      const optionId = optionIdByName.get(entry.category);
+      const target = optionId ? `${optionId} ${entry.category}` : entry.category;
+      return `UP主「${entry.upName || entry.fid || '未知'}」 -> ${target}`;
+    });
+}
+
+function buildRecentFavoriteExamples(operationLog = [], options = []) {
+  const optionIdByName = new Map(options.map(option => [option.name, option.optionId]));
+  return operationLog
+    .filter(entry =>
+      entry.type === 'favorite' &&
+      (entry.action === 'moved' || entry.action === 'matched') &&
+      (entry.suggestedFolder || entry.to)
+    )
+    .slice(0, 5)
+    .map((entry) => {
+      const folderName = entry.suggestedFolder || entry.to;
+      const optionId = optionIdByName.get(folderName);
+      const target = optionId ? `${optionId} ${folderName}` : folderName;
+      return `视频「${entry.title || '未知视频'}」 -> ${target}`;
+    });
 }
 
 /**
@@ -93,23 +126,32 @@ export async function handleFollow(fid, requestContext = {}) {
     return { error: true, message: `获取分组列表失败: ${err.message}` };
   }
 
+  const tagOptions = createChoiceOptions(tags, tag => ({
+    name: typeof tag === 'string' ? tag : tag.name,
+  }));
+
   // 5. LLM 分类
   let category;
   try {
     const chat = createLLMChat(config);
-    const system = buildFollowClassifyPrompt(tags);
+    const system = buildFollowClassifyPrompt(
+      tagOptions,
+      buildRecentFollowExamples(config.operationLog, tagOptions)
+    );
     const userContent = [
       `UP主：${upName}`,
       sign ? `签名：${sign}` : '',
       videoTitles.length > 0 ? `最近视频：${JSON.stringify(videoTitles)}` : '',
     ].filter(Boolean).join('\n');
 
-    category = await chat(system, userContent);
-    category = category.replace(/["""]/g, '').trim();
-
-    if (!category || category.length > 20) {
-      category = '其他';
-    }
+    const rawChoice = await chat(system, userContent);
+    const resolvedChoice = resolveChoiceFromLLM(rawChoice, tagOptions, {
+      maxNewName: 8,
+      fallbackName: '其他',
+    });
+    category = resolvedChoice.mode === 'existing'
+      ? resolvedChoice.option.name
+      : resolvedChoice.name;
   } catch (err) {
     return { error: true, message: `LLM 分类失败: ${err.message}`, upName };
   }
@@ -194,9 +236,16 @@ export async function planFavoriteFolder(rid, requestContext = {}) {
     return prepared;
   }
 
-  const { title, suggestedFolder, folders } = prepared;
-  const targetFolder = folders.find(folder => folder.title === suggestedFolder);
-  const targetFolderId = targetFolder?.id ? String(targetFolder.id) : '';
+  const {
+    title,
+    suggestedFolder,
+    folders,
+    matchedFolderId = '',
+  } = prepared;
+  const targetFolder = matchedFolderId
+    ? folders.find(folder => String(folder.id) === matchedFolderId)
+    : folders.find(folder => folder.title === suggestedFolder);
+  const targetFolderId = targetFolder?.id ? String(targetFolder.id) : matchedFolderId;
 
   try {
     await assertFeatureEnabled('autoFavOrganize', '自动归类已关闭');
@@ -260,7 +309,7 @@ export async function handleFavorite(rid, addMediaIds, requestContext = {}) {
     return prepared;
   }
 
-  const { config, title, uid, folders, suggestedFolder } = prepared;
+  const { config, title, uid, folders, suggestedFolder, matchedFolderId = '' } = prepared;
 
   // 4. 查找已选择的收藏夹名称
   const chosenFolderIds = addMediaIds.split(',').map(s => s.trim());
@@ -280,8 +329,10 @@ export async function handleFavorite(rid, addMediaIds, requestContext = {}) {
   }
 
   // 6. 查找或创建目标收藏夹
-  let targetFolder = folders.find(f => f.title === suggestedFolder);
-  let targetMediaId = targetFolder?.id || config.favFolders?.[suggestedFolder];
+  let targetFolder = matchedFolderId
+    ? folders.find(f => String(f.id) === matchedFolderId)
+    : folders.find(f => f.title === suggestedFolder);
+  let targetMediaId = targetFolder?.id || matchedFolderId || config.favFolders?.[suggestedFolder];
 
   if (!targetMediaId) {
     try {
@@ -358,7 +409,14 @@ async function prepareFavoriteSuggestion(rid, requestContext = {}) {
 
   try {
     const chat = createLLMChat(config);
-    const system = buildFavClassifyPrompt(folders);
+    const folderOptions = createChoiceOptions(folders, folder => ({
+      name: typeof folder === 'string' ? folder : folder.title,
+      count: typeof folder === 'object' ? folder.media_count || 0 : 0,
+    }));
+    const system = buildFavClassifyPrompt(
+      folderOptions,
+      buildRecentFavoriteExamples(config.operationLog, folderOptions)
+    );
     const userContent = [
       `视频标题：${title}`,
       `UP主：${ownerName}`,
@@ -366,12 +424,17 @@ async function prepareFavoriteSuggestion(rid, requestContext = {}) {
       desc ? `简介：${desc.slice(0, 100)}` : '',
     ].filter(Boolean).join('\n');
 
-    let suggestedFolder = await chat(system, userContent);
-    suggestedFolder = suggestedFolder.replace(/["""]/g, '').trim();
-
-    if (!suggestedFolder || suggestedFolder.length > 20) {
-      suggestedFolder = '默认收藏夹';
-    }
+    const rawChoice = await chat(system, userContent);
+    const resolvedChoice = resolveChoiceFromLLM(rawChoice, folderOptions, {
+      maxNewName: 8,
+      fallbackName: '默认收藏夹',
+    });
+    const suggestedFolder = resolvedChoice.mode === 'existing'
+      ? resolvedChoice.option.name
+      : resolvedChoice.name;
+    const matchedFolderId = resolvedChoice.mode === 'existing'
+      ? String(resolvedChoice.option.item?.id || '')
+      : '';
 
     return {
       config,
@@ -380,6 +443,7 @@ async function prepareFavoriteSuggestion(rid, requestContext = {}) {
       title,
       folders,
       suggestedFolder,
+      matchedFolderId,
     };
   } catch (err) {
     return { error: true, message: `LLM 归类失败: ${err.message}`, title };

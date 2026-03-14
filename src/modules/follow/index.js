@@ -2,7 +2,7 @@ import path from 'path';
 import { createBiliClient } from '../../core/bili-client.js';
 import { createLogger } from '../../core/logger.js';
 import { readJson, writeJson, ensureDirs } from '../../core/store.js';
-import { config, CATEGORIES } from '../../config.js';
+import { config } from '../../config.js';
 import { createGlmClassifier } from '../../llm/glm.js';
 import { createKimiClassifier } from '../../llm/kimi.js';
 import { createMinimaxClassifier } from '../../llm/minimax.js';
@@ -33,14 +33,14 @@ export async function runFollow(opts = {}) {
   // 选择 LLM
   let llmClassifier;
   if (config.llmProvider === 'kimi') {
-    llmClassifier = createKimiClassifier(config, CATEGORIES);
+    llmClassifier = createKimiClassifier(config, config.followCategories);
   } else if (config.llmProvider === 'minimax') {
-    llmClassifier = createMinimaxClassifier(config, CATEGORIES);
+    llmClassifier = createMinimaxClassifier(config, config.followCategories);
   } else {
     if (!config.zhipuApiKey && config.llmProvider === 'zhipu') {
       log('警告', { message: '缺少智谱 API Key，您可以切换 LLM_PROVIDER=kimi 或 minimax' });
     }
-    llmClassifier = createGlmClassifier(config, CATEGORIES);
+    llmClassifier = createGlmClassifier(config, config.followCategories);
   }
 
   log('启动', {
@@ -48,7 +48,8 @@ export async function runFollow(opts = {}) {
     dryRun: config.dryRun,
     moveMode: config.moveMode,
     llmProvider: config.llmProvider,
-    pageSize: config.pageSize
+    pageSize: config.pageSize,
+    followCategories: config.followCategories
   });
 
   // 1. 读取现有 tag 映射

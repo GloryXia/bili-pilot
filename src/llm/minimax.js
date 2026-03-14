@@ -21,7 +21,7 @@ export function createMinimaxClassifier(config, defaultCategories) {
 
   async function classifyBatch(upList, dynamicCategories) {
     const categories = dynamicCategories && dynamicCategories.length > 0 ? dynamicCategories : defaultCategories;
-    const instructions = buildBatchPrompt(config, categories);
+    const instructions = buildBatchPrompt(categories);
 
     const userInfo = upList.map(up => {
       let info = `UID: ${up.id}\n名称: ${up.uname}\n签名: ${up.sign || '无'}`;
@@ -55,7 +55,7 @@ export function createMinimaxClassifier(config, defaultCategories) {
       const parsed = parseLLMResponse(content);
       const result = {};
       for (const [id, value] of Object.entries(parsed)) {
-        result[id] = normalizeCategory(value, categories, config.allowCustomCategories);
+        result[id] = normalizeCategory(value, categories);
       }
       return result;
     } catch (parseError) {

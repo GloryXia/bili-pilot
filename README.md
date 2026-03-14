@@ -120,11 +120,15 @@ npm run export                      # 导出本地数据
 | `DRY_RUN` | CLI 只读模式，默认 `true` |
 | `MOVE_MODE` | 收藏整理时是否用“移动”替代“复制” |
 | `FORCE_RECLASSIFY` | 是否忽略缓存强制重新分析 |
-| `ALLOW_CUSTOM_CATEGORIES` | 是否允许自定义分类名 |
+
+CLI 关注分类不再从 `.env` 读取分类全集。请直接编辑 [`config/follow-categories.json`](/Users/xiachao/Desktop/developer/code/bili-follow-glm-repack/config/follow-categories.json)；文件顶层是字符串数组，CLI 启动时会读取它作为唯一推荐分组集合。读取失败时会回退到内置默认分类。
 
 ## 项目结构
 
 ```text
+config/
+└── follow-categories.json    # CLI 关注分类配置
+
 extension/
 ├── manifest.json              # Chrome 扩展入口
 ├── service-worker.js          # MV3 后台逻辑

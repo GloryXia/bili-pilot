@@ -1,5 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
+import { normalizeCategory as normalizeCategoryCore } from './core/helpers.js';
 
 export async function ensureDirs(rootDir) {
   await fs.ensureDir(path.join(rootDir, 'data'));
@@ -31,15 +32,7 @@ export async function writeJson(file, value) {
   await fs.writeJson(file, value, { spaces: 2 });
 }
 
-export function normalizeCategory(value, categories = [], allowCustom = false) {
-  const clean = String(value || '').trim().replace(/[，。；;：:\s/\\\[\]（）()]/g, '');
-  if (categories.includes(clean)) return clean;
-  // 如果开启了自定义分组，且新名称不长（比如 <=8 个字符）且不是空字符串
-  if (allowCustom && clean.length > 0 && clean.length <= 8) {
-    return clean;
-  }
-  return '其他';
-}
+export const normalizeCategory = normalizeCategoryCore;
 
 export function createLogger(logFile) {
   return (...items) => {

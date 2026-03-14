@@ -21,6 +21,7 @@ export async function classifyFollowings({
   const cache = await readJson(cacheFile, {});
   let processedSinceSave = 0;
   const nav = await bili.getNav();
+  const currentCategories = config.followCategories || [];
 
   const pageSize = config.pageSize || 20;
   for (let i = 0; i < allFollowings.length; i += pageSize) {
@@ -32,7 +33,10 @@ export async function classifyFollowings({
 
     for (const up of chunk) {
       const mid = String(up.mid);
-      if (!config.forceReclassify && cache[mid]?.category) {
+      const cachedCategory = cache[mid]?.category || '';
+      const canReuseCachedCategory = cachedCategory && currentCategories.includes(cachedCategory);
+
+      if (!config.forceReclassify && canReuseCachedCategory) {
         log('跳过分类（已存在）', { mid, uname: cache[mid].uname || up.uname, category: cache[mid].category });
         continue;
       }
@@ -78,7 +82,6 @@ export async function classifyFollowings({
       log('开始批量分类', { count: batchPayloads.length });
       try {
         const classifyData = batchPayloads.map(b => ({ id: b.id, ...b.payload }));
-        const currentCategories = Object.keys(tagMap);
         const categoryMap = await llmClassifier.classifyBatch(classifyData, currentCategories);
 
         for (const item of batchPayloads) {
