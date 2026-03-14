@@ -633,6 +633,9 @@
         }
 
         if (!plan || plan.error || plan.skipped) {
+          if (plan?.error) {
+            emitToast('收藏归类失败', plan.message || '请手动选择收藏夹', 'error');
+          }
           cancelFavoriteSession(plan?.message || plan?.reason || 'fallback_manual');
           return;
         }

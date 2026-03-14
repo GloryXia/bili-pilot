@@ -38,12 +38,14 @@ function parseChoiceResponse(raw) {
       throw new Error('not object');
     }
     return {
+      parsedOk: true,
       mode: parsed.mode === 'existing' || parsed.mode === 'new' ? parsed.mode : 'unknown',
       optionId: typeof parsed.optionId === 'string' ? parsed.optionId.trim() : '',
       name: typeof parsed.name === 'string' ? parsed.name.trim() : '',
     };
   } catch {
     return {
+      parsedOk: false,
       mode: 'unknown',
       optionId: '',
       name: stripReasoning(raw).split('\n').find(Boolean)?.trim() || '',
@@ -139,7 +141,11 @@ function sanitizeNewName(name, maxLength, fallbackName) {
   return stripped.length > maxLength ? stripped.slice(0, maxLength) : stripped;
 }
 
-export function resolveChoiceFromLLM(raw, options = [], { maxNewName = 8, fallbackName = '其他' } = {}) {
+export function resolveChoiceFromLLM(
+  raw,
+  options = [],
+  { maxNewName = 8, fallbackName = '其他', allowFallbackNew = true } = {}
+) {
   const parsed = parseChoiceResponse(raw);
 
   if (parsed.mode === 'existing' && parsed.optionId) {
@@ -159,10 +165,47 @@ export function resolveChoiceFromLLM(raw, options = [], { maxNewName = 8, fallba
     return { mode: 'existing', option: fallbackByRaw.option, source: `raw-${fallbackByRaw.method}`, parsed };
   }
 
+  if (!parsed.parsedOk) {
+    return {
+      mode: 'unresolved',
+      name: '',
+      source: 'parse_failed',
+      parsed,
+    };
+  }
+
+  if (parsed.mode === 'unknown') {
+    return {
+      mode: 'unresolved',
+      name: '',
+      source: 'invalid_mode',
+      parsed,
+    };
+  }
+
+  const nextName = sanitizeNewName(parsed.name || raw, maxNewName, fallbackName);
+  if (!nextName) {
+    return {
+      mode: 'unresolved',
+      name: '',
+      source: 'empty_name',
+      parsed,
+    };
+  }
+
+  if (!allowFallbackNew && parsed.mode !== 'new') {
+    return {
+      mode: 'unresolved',
+      name: '',
+      source: 'fallback_new_disabled',
+      parsed,
+    };
+  }
+
   return {
     mode: 'new',
-    name: sanitizeNewName(parsed.name || raw, maxNewName, fallbackName),
-    source: parsed.mode === 'new' ? 'new' : 'fallback-new',
+    name: nextName,
+    source: parsed.mode === 'new' ? 'new' : 'existing-miss-new',
     parsed,
   };
 }

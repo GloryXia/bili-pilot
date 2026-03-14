@@ -150,6 +150,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       if (result?.error) {
         notify('收藏归类失败', result.message, { isError: true });
+        showPageToast(sender.tab?.id, '收藏归类失败', result.message, 'error');
       }
 
       return result;
@@ -220,6 +221,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // 静默跳过
       } else if (result.error) {
         notify('收藏归类失败', result.message, { isError: true });
+        showPageToast(sender.tab?.id, '收藏归类失败', result.message, 'error');
       } else if (result.alreadyCorrect) {
         notify('收藏归类',
           `「${result.title}」已在最佳收藏夹中 ✓`);

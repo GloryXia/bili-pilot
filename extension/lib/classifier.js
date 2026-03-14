@@ -413,9 +413,20 @@ async function prepareFavoriteSuggestion(rid, requestContext = {}) {
       name: typeof folder === 'string' ? folder : folder.title,
       count: typeof folder === 'object' ? folder.media_count || 0 : 0,
     }));
+    
+    // Load default categories as suggested new folder names
+    let defaultCategories = [];
+    try {
+      const resp = await fetch(chrome.runtime.getURL('config/follow-categories.json'));
+      defaultCategories = await resp.json();
+    } catch(e) {
+      console.warn('Failed to load follow-categories.json', e);
+    }
+    
     const system = buildFavClassifyPrompt(
       folderOptions,
-      buildRecentFavoriteExamples(config.operationLog, folderOptions)
+      buildRecentFavoriteExamples(config.operationLog, folderOptions),
+      defaultCategories
     );
     const userContent = [
       `视频标题：${title}`,
@@ -427,8 +438,18 @@ async function prepareFavoriteSuggestion(rid, requestContext = {}) {
     const rawChoice = await chat(system, userContent);
     const resolvedChoice = resolveChoiceFromLLM(rawChoice, folderOptions, {
       maxNewName: 8,
-      fallbackName: '默认收藏夹',
+      fallbackName: '',
+      allowFallbackNew: true,
     });
+    if (resolvedChoice.mode === 'unresolved') {
+      return {
+        error: true,
+        message: resolvedChoice.source === 'parse_failed'
+          ? 'LLM 收藏归类结果解析失败，请手动选择收藏夹'
+          : 'LLM 未返回可用的收藏夹结果，请手动选择',
+        title,
+      };
+    }
     const suggestedFolder = resolvedChoice.mode === 'existing'
       ? resolvedChoice.option.name
       : resolvedChoice.name;
